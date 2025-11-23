@@ -19,6 +19,7 @@ package v1
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -37,8 +38,11 @@ var configmaplog = logf.Log.WithName("configmap-resource")
 
 // SetupConfigMapWebhookWithManager registers the webhook for ConfigMap in the manager.
 func SetupConfigMapWebhookWithManager(mgr ctrl.Manager) error {
+
 	return ctrl.NewWebhookManagedBy(mgr).For(&corev1.ConfigMap{}).
-		WithValidator(&ConfigMapCustomValidator{}).
+		WithValidator(&ConfigMapCustomValidator{
+			mgr.GetClient(),
+		}).
 		WithValidatorCustomPath("/env-keys-validation").
 		Complete()
 }
@@ -69,34 +73,37 @@ func (v *ConfigMapCustomValidator) ValidateCreate(ctx context.Context, obj runti
 	if !ok {
 		return nil, fmt.Errorf("expected a ConfigMap object but got %T", obj)
 	}
-	configmaplog.Info("Validation for ConfigMap upon creation", "name", configmap.GetName())
+	configmaplog.Info("Validation for ConfigMap upon creation", "name-1", configmap.GetName())
 
 	// (user): fill in your validation logic upon object creation.
 
 	// Get list of existing EnvKeyMonitors
-	var envKeyMonitors configv1.EnvKeyMonitorList
-	if err := v.List(ctx, &envKeyMonitors); err != nil {
+	var envKeyMonitorList configv1.EnvKeyMonitorList
+	if err := v.List(ctx, &envKeyMonitorList, client.InNamespace(configmap.Namespace)); err != nil {
 		return nil, fmt.Errorf("failed to list configmaps: %v", err)
 	}
 
 	var allKeys []string
-	for _, envKeyMonitor := range envKeyMonitors.Items {
+	for _, envKeyMonitor := range envKeyMonitorList.Items {
 
-		// Skip if not in same namespace
-		if envKeyMonitor.Namespace == configmap.Namespace {
-			continue
-		}
-
+		configmaplog.Info("EnvKeyMonitor found in configmap namespace", "name", envKeyMonitor)
 		keys := &envKeyMonitor.Spec.Keys
 		allKeys = append(allKeys, *keys...)
 	}
+
+	configmaplog.Info("Configmap which contain the following keys are not allowed to be created in the current namespace",
+		"namespace",
+		configmap.Namespace,
+		"forbidden keys",	
+		strings.Join(allKeys, ", "),
+	)
 
 	// Iterate keys if in same namespace
 	for _, keyName := range allKeys {
 		if _, keyExists := configmap.Data[keyName]; keyExists {
 			return nil, fmt.Errorf(
 				"Configmap cannot be created because of invalid field '.spec.data.%s'. Configmap cannot contain key '%s'.\n"+
-					"This key is only allowed in objects of type Secret, remove key from Configmap before creating configmap.",
+					"This key is only allowed in objects of type Secret, remove key from Configmap before creating.",
 				keyName,
 				keyName,
 			)
@@ -117,29 +124,32 @@ func (v *ConfigMapCustomValidator) ValidateUpdate(ctx context.Context, oldObj, n
 	// TODO(user): fill in your validation logic upon object update.
 
 	// Get list of existing EnvKeyMonitors
-	var envKeyMonitors configv1.EnvKeyMonitorList
-	if err := v.List(ctx, &envKeyMonitors); err != nil {
+	var envKeyMonitorList configv1.EnvKeyMonitorList
+	if err := v.List(ctx, &envKeyMonitorList, client.InNamespace(configmap.Namespace)); err != nil {
 		return nil, fmt.Errorf("failed to list configmaps: %v", err)
 	}
 
 	var allKeys []string
-	for _, envKeyMonitor := range envKeyMonitors.Items {
+	for _, envKeyMonitor := range envKeyMonitorList.Items {
 
-		// Skip if not in same namespace
-		if envKeyMonitor.Namespace == configmap.Namespace {
-			continue
-		}
-
+		configmaplog.Info("EnvKeyMonitor found in configmap namespace", "name", envKeyMonitor)
 		keys := &envKeyMonitor.Spec.Keys
 		allKeys = append(allKeys, *keys...)
 	}
+
+	configmaplog.Info("Configmap which contain the following keys are not allowed to be created in the current namespace",
+		"namespace",
+		configmap.Namespace,
+		"forbidden keys",
+		strings.Join(allKeys, ", "),
+	)
 
 	// Iterate keys if in same namespace
 	for _, keyName := range allKeys {
 		if _, keyExists := configmap.Data[keyName]; keyExists {
 			return nil, fmt.Errorf(
 				"Configmap cannot be updated because of invalid field '.spec.data.%s'. Configmap cannot contain key '%s'.\n"+
-					"This key is only allowed in objects of type Secret, remove key from Configmap before updating configmap.",
+				"This key is only allowed in objects of type Secret, remove key from Configmap before updating.",
 				keyName,
 				keyName,
 			)
