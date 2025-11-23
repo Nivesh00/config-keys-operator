@@ -73,7 +73,7 @@ func (v *ConfigMapCustomValidator) ValidateCreate(ctx context.Context, obj runti
 	if !ok {
 		return nil, fmt.Errorf("expected a ConfigMap object but got %T", obj)
 	}
-	configmaplog.Info("Validation for ConfigMap upon creation", "name-1", configmap.GetName())
+	configmaplog.Info("Validation for ConfigMap upon creation", "name", configmap.GetName())
 
 	// (user): fill in your validation logic upon object creation.
 
