@@ -72,7 +72,7 @@ func (r *EnvKeyMonitorReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	log.Info("Checking for duplicates in current EnvKeyMonitor object", "EnvKeyMonitor object name", envKeyMonitor.Name)
 	if err := CheckDuplicateKeysInSingleObj(&envKeyMonitor.Spec.Keys); err != nil {
 		log.Error(err, "Rejecting creation of new EnvKeyMonitor object...")
-		return ctrl.Result{}, err
+		return ctrl.Result{}, nil
 	}
 
 	// Get all EnvKeyMonitor objs in namespace
@@ -80,14 +80,14 @@ func (r *EnvKeyMonitorReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	var envKeyMonitorList configv1.EnvKeyMonitorList
 	if err := r.List(ctx, &envKeyMonitorList, client.InNamespace(envKeyMonitor.Namespace)); err != nil {
 		log.Info("Cannot get EnvKeyMonitor objects in current namespace")
-		return ctrl.Result{}, err
+		return ctrl.Result{}, nil
 	}
 
 	// Check for duplicate keys in all EnvKeyMonitor objects in current namespace
 	log.Info("Checking for duplicates in all EnvKeyMonitor objects in current namespace", "Namespace", envKeyMonitor.Namespace)
 	if err := CheckDuplicateKeysInNamespace(&envKeyMonitor.Spec.Keys, &envKeyMonitorList); err != nil {
 		log.Error(err, "Rejecting creation of new EnvKeyMonitor object...")
-		return ctrl.Result{}, err
+		return ctrl.Result{}, nil
 	}
 
 	return ctrl.Result{}, nil
@@ -96,10 +96,10 @@ func (r *EnvKeyMonitorReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 // Check if there are duplicates in path .spec.keys[] for a single EnvKeyMonitor obj
 func CheckDuplicateKeysInSingleObj(keysList *[]string) error {
 
-	var accumulator []*string
+	var accumulator []string
 	for _, key := range *keysList {
 		// If duplicate is present, return an error
-		if slices.Contains(accumulator, &key) {
+		if slices.Contains(accumulator, key) {
 			return fmt.Errorf(
 				"Cannot create EnvKeyMonitor due to duplicates found in .spec.keys[]\n"+
 					"EnvKeyMonitor cannot have duplicates in the 'keys' list Duplicate key found is %s",
@@ -107,7 +107,7 @@ func CheckDuplicateKeysInSingleObj(keysList *[]string) error {
 			)
 		}
 		// Add key to accumulator
-		accumulator = append(accumulator, &key)
+		accumulator = append(accumulator, key)
 	}
 	return nil
 }
@@ -116,16 +116,16 @@ func CheckDuplicateKeysInSingleObj(keysList *[]string) error {
 func CheckDuplicateKeysInNamespace(newKeysList *[]string, envKeyMonitorList *configv1.EnvKeyMonitorList) error {
 
 	// Get all keys currently in namespace
-	var allKeysList []*string
+	var allKeysList []string
 	for _, envKeyMonitor := range envKeyMonitorList.Items {
 		for _, key := range envKeyMonitor.Spec.Keys {
-			allKeysList = append(allKeysList, &key)
+			allKeysList = append(allKeysList, key)
 		}
 	}
 
 	for _, key := range *newKeysList {
 		// If duplicate is present, return an error
-		if slices.Contains(allKeysList, &key) {
+		if slices.Contains(allKeysList, key) {
 			return fmt.Errorf(
 				"Cannot create EnvKeyMonitor due to duplicates found in .spec.keys[]\n"+
 					"EnvKeyMonitor cannot have duplicates in the 'keys' list\n"+

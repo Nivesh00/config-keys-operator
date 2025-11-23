@@ -172,8 +172,8 @@ func checkConfigmapKeys(forbiddenKeysList *[]string, configmap *corev1.ConfigMap
 	for _, forbiddenKey := range *forbiddenKeysList {
 		if _, keyExists := configmap.Data[forbiddenKey]; keyExists {
 			return fmt.Errorf(
-				"Configmap contains forbidden key and is therefore invalid\n"+
-					"Forbidden key is '%s",
+				"Configmap contains forbidden key and is therefore invalid. "+
+				"Forbidden key is '%s",
 				forbiddenKey,
 			)
 		}
