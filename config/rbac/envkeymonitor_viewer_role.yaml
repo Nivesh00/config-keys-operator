@@ -1,0 +1,29 @@
+# This rule is not used by the project config-keys-operator itself.
+# It is provided to allow the cluster admin to help manage permissions for users.
+#
+# Grants read-only access to config.core.nvsh-ram.io resources.
+# This role is intended for users who need visibility into these resources
+# without permissions to modify them. It is ideal for monitoring purposes and limited-access viewing.
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: config-keys-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: envkeymonitor-viewer-role
+rules:
+- apiGroups:
+  - config.core.nvsh-ram.io
+  resources:
+  - envkeymonitors
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - config.core.nvsh-ram.io
+  resources:
+  - envkeymonitors/status
+  verbs:
+  - get

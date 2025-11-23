@@ -1,0 +1,9 @@
+apiVersion: config.core.nvsh-ram.io/v1
+kind: EnvKeyMonitor
+metadata:
+  labels:
+    app.kubernetes.io/name: config-keys-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: envkeymonitor-sample
+spec:
+  # TODO(user): Add fields here

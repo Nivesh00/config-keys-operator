@@ -1,0 +1,163 @@
+/*
+Copyright 2025.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package v1
+
+import (
+	"context"
+	"fmt"
+
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/webhook"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
+
+	configv1 "github.com/Nivesh00/config-keys-operator.git/api/v1"
+)
+
+// nolint:unused
+// log is for logging in this package.
+var configmaplog = logf.Log.WithName("configmap-resource")
+
+// SetupConfigMapWebhookWithManager registers the webhook for ConfigMap in the manager.
+func SetupConfigMapWebhookWithManager(mgr ctrl.Manager) error {
+	return ctrl.NewWebhookManagedBy(mgr).For(&corev1.ConfigMap{}).
+		WithValidator(&ConfigMapCustomValidator{}).
+		WithValidatorCustomPath("/env-keys-validation").
+		Complete()
+}
+
+// TODO(user): EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
+
+// TODO(user): change verbs to "verbs=create;update;delete" if you want to enable deletion validation.
+// NOTE: If you want to customise the 'path', use the flags '--defaulting-path' or '--validation-path'.
+// +kubebuilder:webhook:path=/env-keys-validation,mutating=false,failurePolicy=fail,sideEffects=None,groups="",resources=configmaps,verbs=create;update,versions=v1,name=vconfigmap-v1.kb.io,admissionReviewVersions=v1
+
+// ConfigMapCustomValidator struct is responsible for validating the ConfigMap resource
+// when it is created, updated, or deleted.
+//
+// NOTE: The +kubebuilder:object:generate=false marker prevents controller-gen from generating DeepCopy methods,
+// as this struct is used only for temporary operations and does not need to be deeply copied.
+type ConfigMapCustomValidator struct {
+
+	// TODO(user): Add more fields as needed for validation
+	// Used to query k8s
+	client.Client
+}
+
+var _ webhook.CustomValidator = &ConfigMapCustomValidator{}
+
+// ValidateCreate implements webhook.CustomValidator so a webhook will be registered for the type ConfigMap.
+func (v *ConfigMapCustomValidator) ValidateCreate(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
+	configmap, ok := obj.(*corev1.ConfigMap)
+	if !ok {
+		return nil, fmt.Errorf("expected a ConfigMap object but got %T", obj)
+	}
+	configmaplog.Info("Validation for ConfigMap upon creation", "name", configmap.GetName())
+
+	// (user): fill in your validation logic upon object creation.
+
+	// Get list of existing EnvKeyMonitors
+	var envKeyMonitors configv1.EnvKeyMonitorList
+	if err := v.List(ctx, &envKeyMonitors); err != nil {
+		return nil, fmt.Errorf("failed to list configmaps: %v", err)
+	}
+
+	var allKeys []string
+	for _, envKeyMonitor := range envKeyMonitors.Items {
+
+		// Skip if not in same namespace
+		if envKeyMonitor.Namespace == configmap.Namespace {
+			continue
+		}
+
+		keys := &envKeyMonitor.Spec.Keys
+		allKeys = append(allKeys, *keys...)
+	}
+
+	// Iterate keys if in same namespace
+	for _, keyName := range allKeys {
+		if _, keyExists := configmap.Data[keyName]; keyExists {
+			return nil, fmt.Errorf(
+				"Configmap cannot be created because of invalid field '.spec.data.%s'. Configmap cannot contain key '%s'.\n"+
+					"This key is only allowed in objects of type Secret, remove key from Configmap before creating configmap.",
+				keyName,
+				keyName,
+			)
+		}
+	}
+
+	return nil, nil
+}
+
+// ValidateUpdate implements webhook.CustomValidator so a webhook will be registered for the type ConfigMap.
+func (v *ConfigMapCustomValidator) ValidateUpdate(ctx context.Context, oldObj, newObj runtime.Object) (admission.Warnings, error) {
+	configmap, ok := newObj.(*corev1.ConfigMap)
+	if !ok {
+		return nil, fmt.Errorf("expected a ConfigMap object for the newObj but got %T", newObj)
+	}
+	configmaplog.Info("Validation for ConfigMap upon update", "name", configmap.GetName())
+
+	// TODO(user): fill in your validation logic upon object update.
+
+	// Get list of existing EnvKeyMonitors
+	var envKeyMonitors configv1.EnvKeyMonitorList
+	if err := v.List(ctx, &envKeyMonitors); err != nil {
+		return nil, fmt.Errorf("failed to list configmaps: %v", err)
+	}
+
+	var allKeys []string
+	for _, envKeyMonitor := range envKeyMonitors.Items {
+
+		// Skip if not in same namespace
+		if envKeyMonitor.Namespace == configmap.Namespace {
+			continue
+		}
+
+		keys := &envKeyMonitor.Spec.Keys
+		allKeys = append(allKeys, *keys...)
+	}
+
+	// Iterate keys if in same namespace
+	for _, keyName := range allKeys {
+		if _, keyExists := configmap.Data[keyName]; keyExists {
+			return nil, fmt.Errorf(
+				"Configmap cannot be updated because of invalid field '.spec.data.%s'. Configmap cannot contain key '%s'.\n"+
+					"This key is only allowed in objects of type Secret, remove key from Configmap before updating configmap.",
+				keyName,
+				keyName,
+			)
+		}
+	}
+
+	return nil, nil
+}
+
+// ValidateDelete implements webhook.CustomValidator so a webhook will be registered for the type ConfigMap.
+func (v *ConfigMapCustomValidator) ValidateDelete(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
+	configmap, ok := obj.(*corev1.ConfigMap)
+	if !ok {
+		return nil, fmt.Errorf("expected a ConfigMap object but got %T", obj)
+	}
+	configmaplog.Info("Validation for ConfigMap upon deletion", "name", configmap.GetName())
+
+	// TODO(user): fill in your validation logic upon object deletion.
+
+	return nil, nil
+}
