@@ -18,10 +18,7 @@ package controller
 
 import (
 	"context"
-	"fmt"
-	"slices"
 
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -50,92 +47,11 @@ type EnvKeyMonitorReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.22.4/pkg/reconcile
 func (r *EnvKeyMonitorReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := logf.FromContext(ctx)
+	_ = logf.FromContext(ctx)
 
 	// TODO(user): your logic here
 
-	// Get new EnvKeyMonitor
-	var envKeyMonitor configv1.EnvKeyMonitor
-	if err := r.Get(ctx, req.NamespacedName, &envKeyMonitor); err != nil {
-		if apierrors.IsNotFound(err) {
-			// If the custom resource is not found then it usually means that it was deleted or not created
-			// In this way, we will stop the reconciliation
-			log.Info("EnvKeyMonitor resource not found. Ignoring since object must be deleted")
-			return ctrl.Result{}, nil
-		}
-		// Error reading the object - requeue the request.
-		log.Error(err, "Failed to get EnvKeyMonitor")
-		return ctrl.Result{}, err
-	}
-
-	// Check for duplicate keys in current obj
-	log.Info("Checking for duplicates in current EnvKeyMonitor object", "EnvKeyMonitor object name", envKeyMonitor.Name)
-	if err := CheckDuplicateKeysInSingleObj(&envKeyMonitor.Spec.Keys); err != nil {
-		log.Error(err, "Rejecting creation of new EnvKeyMonitor object...")
-		return ctrl.Result{}, nil
-	}
-
-	// Get all EnvKeyMonitor objs in namespace
-	log.Info("Getting all EnvKeyMonitor objects in current namespace", "Namespace", envKeyMonitor.Namespace)
-	var envKeyMonitorList configv1.EnvKeyMonitorList
-	if err := r.List(ctx, &envKeyMonitorList, client.InNamespace(envKeyMonitor.Namespace)); err != nil {
-		log.Info("Cannot get EnvKeyMonitor objects in current namespace")
-		return ctrl.Result{}, nil
-	}
-
-	// Check for duplicate keys in all EnvKeyMonitor objects in current namespace
-	log.Info("Checking for duplicates in all EnvKeyMonitor objects in current namespace", "Namespace", envKeyMonitor.Namespace)
-	if err := CheckDuplicateKeysInNamespace(&envKeyMonitor.Spec.Keys, &envKeyMonitorList); err != nil {
-		log.Error(err, "Rejecting creation of new EnvKeyMonitor object...")
-		return ctrl.Result{}, nil
-	}
-
 	return ctrl.Result{}, nil
-}
-
-// Check if there are duplicates in path .spec.keys[] for a single EnvKeyMonitor obj
-func CheckDuplicateKeysInSingleObj(keysList *[]string) error {
-
-	var accumulator []string
-	for _, key := range *keysList {
-		// If duplicate is present, return an error
-		if slices.Contains(accumulator, key) {
-			return fmt.Errorf(
-				"Cannot create EnvKeyMonitor due to duplicates found in .spec.keys[]\n"+
-					"EnvKeyMonitor cannot have duplicates in the 'keys' list Duplicate key found is %s",
-				key,
-			)
-		}
-		// Add key to accumulator
-		accumulator = append(accumulator, key)
-	}
-	return nil
-}
-
-// Check if there are duplicates in path .spec.keys[] for all EnvKeyMonitor obj in current namespace
-func CheckDuplicateKeysInNamespace(newKeysList *[]string, envKeyMonitorList *configv1.EnvKeyMonitorList) error {
-
-	// Get all keys currently in namespace
-	var allKeysList []string
-	for _, envKeyMonitor := range envKeyMonitorList.Items {
-		for _, key := range envKeyMonitor.Spec.Keys {
-			allKeysList = append(allKeysList, key)
-		}
-	}
-
-	for _, key := range *newKeysList {
-		// If duplicate is present, return an error
-		if slices.Contains(allKeysList, key) {
-			return fmt.Errorf(
-				"Cannot create EnvKeyMonitor due to duplicates found in .spec.keys[]\n"+
-					"EnvKeyMonitor cannot have duplicates in the 'keys' list\n"+
-					"An EnvKeyMonitor object already exists with key '%s' in target namespace",
-				key,
-			)
-		}
-	}
-
-	return nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

@@ -80,7 +80,7 @@ func (v *ConfigMapCustomValidator) ValidateCreate(ctx context.Context, obj runti
 	// Get list of existing EnvKeyMonitors
 	var envKeyMonitorList configv1.EnvKeyMonitorList
 	if err := v.List(ctx, &envKeyMonitorList, client.InNamespace(configmap.Namespace)); err != nil {
-		configmaplog.Error(err, "Cannot get EnvKeyMonitor CRDs in namespace. Rejecting configmap creation")
+		configmaplog.Info(err.Error() + " Cannot get EnvKeyMonitor CRDs in namespace. Rejecting configmap creation")
 		return nil, fmt.Errorf("failed to list configmaps: %v", err)
 	}
 
@@ -97,7 +97,7 @@ func (v *ConfigMapCustomValidator) ValidateCreate(ctx context.Context, obj runti
 	// Check if configmap contains a forbidden key
 	configmaplog.Info("Checking if configmap contains forbidden keys...")
 	if err := checkConfigmapKeys(forbiddenKeysList, configmap); err != nil {
-		configmaplog.Error(err, "Rejecting configmap")
+		configmaplog.Info(err.Error() + " rejecting configmap...")
 		return nil, err
 	}
 
@@ -117,7 +117,7 @@ func (v *ConfigMapCustomValidator) ValidateUpdate(ctx context.Context, oldObj, n
 	// Get list of existing EnvKeyMonitors
 	var envKeyMonitorList configv1.EnvKeyMonitorList
 	if err := v.List(ctx, &envKeyMonitorList, client.InNamespace(configmap.Namespace)); err != nil {
-		configmaplog.Error(err, "Cannot get EnvKeyMonitor CRDs in namespace. Rejecting configmap creation")
+		configmaplog.Info(err.Error() + " Cannot get EnvKeyMonitor CRDs in namespace. Rejecting configmap creation")
 		return nil, fmt.Errorf("failed to list configmaps: %v", err)
 	}
 
@@ -134,7 +134,7 @@ func (v *ConfigMapCustomValidator) ValidateUpdate(ctx context.Context, oldObj, n
 	// Check if configmap contains a forbidden key
 	configmaplog.Info("Checking if configmap contains forbidden keys...")
 	if err := checkConfigmapKeys(forbiddenKeysList, configmap); err != nil {
-		configmaplog.Error(err, "Rejecting configmap")
+		configmaplog.Info(err.Error() + " rejecting configmap...")
 		return nil, err
 	}
 
@@ -173,7 +173,7 @@ func checkConfigmapKeys(forbiddenKeysList *[]string, configmap *corev1.ConfigMap
 		if _, keyExists := configmap.Data[forbiddenKey]; keyExists {
 			return fmt.Errorf(
 				"Configmap contains forbidden key and is therefore invalid. "+
-				"Forbidden key is '%s",
+					"Forbidden key is '%s'",
 				forbiddenKey,
 			)
 		}

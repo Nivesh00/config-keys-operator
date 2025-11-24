@@ -111,6 +111,9 @@ var _ = BeforeSuite(func() {
 	err = SetupConfigMapWebhookWithManager(mgr)
 	Expect(err).NotTo(HaveOccurred())
 
+	err = SetupEnvKeyMonitorWebhookWithManager(mgr)
+	Expect(err).NotTo(HaveOccurred())
+
 	// +kubebuilder:scaffold:webhook
 
 	go func() {
