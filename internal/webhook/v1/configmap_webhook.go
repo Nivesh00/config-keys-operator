@@ -80,34 +80,25 @@ func (v *ConfigMapCustomValidator) ValidateCreate(ctx context.Context, obj runti
 	// Get list of existing EnvKeyMonitors
 	var envKeyMonitorList configv1.EnvKeyMonitorList
 	if err := v.List(ctx, &envKeyMonitorList, client.InNamespace(configmap.Namespace)); err != nil {
+		configmaplog.Info(err.Error() + " Cannot get EnvKeyMonitor CRDs in namespace. Rejecting configmap creation")
 		return nil, fmt.Errorf("failed to list configmaps: %v", err)
 	}
 
-	var allKeys []string
-	for _, envKeyMonitor := range envKeyMonitorList.Items {
+	// Get all forbidden keys
+	forbiddenKeysList := getEnvKevMonitorKeys(&envKeyMonitorList)
 
-		configmaplog.Info("EnvKeyMonitor found in configmap namespace", "name", envKeyMonitor)
-		keys := &envKeyMonitor.Spec.Keys
-		allKeys = append(allKeys, *keys...)
-	}
-
-	configmaplog.Info("Configmap which contain the following keys are not allowed to be created in the current namespace",
+	configmaplog.Info("Configmap which contain the following keys are not allowed in the current namespace",
 		"namespace",
 		configmap.Namespace,
-		"forbidden keys",	
-		strings.Join(allKeys, ", "),
+		"forbidden keys",
+		strings.Join(*forbiddenKeysList, ", "),
 	)
 
-	// Iterate keys if in same namespace
-	for _, keyName := range allKeys {
-		if _, keyExists := configmap.Data[keyName]; keyExists {
-			return nil, fmt.Errorf(
-				"Configmap cannot be created because of invalid field '.spec.data.%s'. Configmap cannot contain key '%s'.\n"+
-					"This key is only allowed in objects of type Secret, remove key from Configmap before creating.",
-				keyName,
-				keyName,
-			)
-		}
+	// Check if configmap contains a forbidden key
+	configmaplog.Info("Checking if configmap contains forbidden keys...")
+	if err := checkConfigmapKeys(forbiddenKeysList, configmap); err != nil {
+		configmaplog.Info(err.Error() + " rejecting configmap...")
+		return nil, err
 	}
 
 	return nil, nil
@@ -126,34 +117,25 @@ func (v *ConfigMapCustomValidator) ValidateUpdate(ctx context.Context, oldObj, n
 	// Get list of existing EnvKeyMonitors
 	var envKeyMonitorList configv1.EnvKeyMonitorList
 	if err := v.List(ctx, &envKeyMonitorList, client.InNamespace(configmap.Namespace)); err != nil {
+		configmaplog.Info(err.Error() + " Cannot get EnvKeyMonitor CRDs in namespace. Rejecting configmap creation")
 		return nil, fmt.Errorf("failed to list configmaps: %v", err)
 	}
 
-	var allKeys []string
-	for _, envKeyMonitor := range envKeyMonitorList.Items {
+	// Get all forbidden keys
+	forbiddenKeysList := getEnvKevMonitorKeys(&envKeyMonitorList)
 
-		configmaplog.Info("EnvKeyMonitor found in configmap namespace", "name", envKeyMonitor)
-		keys := &envKeyMonitor.Spec.Keys
-		allKeys = append(allKeys, *keys...)
-	}
-
-	configmaplog.Info("Configmap which contain the following keys are not allowed to be created in the current namespace",
+	configmaplog.Info("Configmap which contain the following keys are not allowed in the current namespace",
 		"namespace",
 		configmap.Namespace,
 		"forbidden keys",
-		strings.Join(allKeys, ", "),
+		strings.Join(*forbiddenKeysList, ", "),
 	)
 
-	// Iterate keys if in same namespace
-	for _, keyName := range allKeys {
-		if _, keyExists := configmap.Data[keyName]; keyExists {
-			return nil, fmt.Errorf(
-				"Configmap cannot be updated because of invalid field '.spec.data.%s'. Configmap cannot contain key '%s'.\n"+
-				"This key is only allowed in objects of type Secret, remove key from Configmap before updating.",
-				keyName,
-				keyName,
-			)
-		}
+	// Check if configmap contains a forbidden key
+	configmaplog.Info("Checking if configmap contains forbidden keys...")
+	if err := checkConfigmapKeys(forbiddenKeysList, configmap); err != nil {
+		configmaplog.Info(err.Error() + " rejecting configmap...")
+		return nil, err
 	}
 
 	return nil, nil
@@ -170,4 +152,31 @@ func (v *ConfigMapCustomValidator) ValidateDelete(ctx context.Context, obj runti
 	// TODO(user): fill in your validation logic upon object deletion.
 
 	return nil, nil
+}
+
+// Get a list of all EnvKeyMonitor keys in namespace
+func getEnvKevMonitorKeys(envKeyMonitorList *configv1.EnvKeyMonitorList) *[]string {
+
+	var allKeys []string
+	for _, envKeyMonitor := range envKeyMonitorList.Items {
+		for _, key := range envKeyMonitor.Spec.Keys {
+			allKeys = append(allKeys, key)
+		}
+	}
+	return &allKeys
+}
+
+// Check if EnvKeyMonitor CRD in current namespace contain a key
+func checkConfigmapKeys(forbiddenKeysList *[]string, configmap *corev1.ConfigMap) error {
+
+	for _, forbiddenKey := range *forbiddenKeysList {
+		if _, keyExists := configmap.Data[forbiddenKey]; keyExists {
+			return fmt.Errorf(
+				"Configmap contains forbidden key and is therefore invalid. "+
+					"Forbidden key is '%s'",
+				forbiddenKey,
+			)
+		}
+	}
+	return nil
 }

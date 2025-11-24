@@ -18,6 +18,12 @@ resources:
   kind: EnvKeyMonitor
   path: github.com/Nivesh00/config-keys-operator.git/api/v1
   version: v1
+  webhooks:
+    defaulting: true
+    defaultingPath: /envkeymonitor-mutate
+    validation: true
+    validationPath: /envkeymonitor-validate
+    webhookVersion: v1
 - core: true
   group: core
   kind: ConfigMap
